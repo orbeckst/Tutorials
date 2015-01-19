@@ -1,0 +1,164 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Tutorial: Simulating AdK with Gromacs &mdash; Practical 13: AdK Tutorial 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="Practical 13: AdK Tutorial 1.0 documentation" href="#" />
+    <link rel="next" title="1. Directory organization" href="directory_organization.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="directory_organization.html" title="1. Directory organization"
+             accesskey="N">next</a> |</li>
+        <li><a href="#">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="tutorial-simulating-adk-with-gromacs">
+<h1>Tutorial: Simulating AdK with Gromacs<a class="headerlink" href="#tutorial-simulating-adk-with-gromacs" title="Permalink to this headline">¶</a></h1>
+<img alt="Adenylate Kinase (AdK)" class="align-right" src="_images/adk_secondary.jpg" style="width: 30%;" />
+<p>Objective: Perform a MD simulation of the the enzyme adenylate kinase
+(AdK) in its open conformation without a ligand bound. Simulate it in
+a realistic environment (100 mM NaCl solution at <span class="math">\(T = 300\)</span> K and
+<span class="math">\(P = 1\)</span> bar) and analyze its structural properties.</p>
+<p>For this tutorial we use <a class="reference external" href="http://www.gromacs.org">Gromacs</a> (version 4.5.5) to set up the
+system, run the simulation, and perform analysis. The overall workflow
+contains the following steps:</p>
+<ol class="arabic simple">
+<li>Download tutorial files and organize the work space</li>
+<li>Setup<ul>
+<li>obtain structure 4AKE from PDB, select chain A</li>
+<li>use default protonation states</li>
+<li>generate topology</li>
+<li>solvate in water in simulation cell (rhombic dodecahedron)</li>
+<li>add NaCl ions to neutralise and final physiological concentration
+of 100 mM</li>
+</ul>
+</li>
+<li>Energy minimisation (EM)</li>
+<li>Position restraint equilibration of solvent (MD); <em>NPT</em> (use weak
+coupling (Berendsen) schemes)</li>
+<li>Equilibrium MD simulation (unrestrained, <em>NPT</em>, use Nose-Hoover and
+Parrinello-Rahman temperature and pressure coupling)</li>
+<li>Analysis<ul>
+<li>RMSD</li>
+<li>RMSF</li>
+<li>opening (NMP-LID distance)</li>
+<li>radius of gyration</li>
+<li>secondary structure</li>
+</ul>
+</li>
+</ol>
+<p>All input files are provided in the tar file
+<a class="reference external" href="http://becksteinlab.physics.asu.edu/pages/courses/2013/SimBioNano/13/AdKTutorial.tar.bz2">AdKTutorial.tar.bz2</a>. Start by downloading and uncompressing the
+file:</p>
+<div class="highlight-python"><pre>curl -O http://becksteinlab.physics.asu.edu/pages/courses/2013/SimBioNano/13/AdKTutorial.tar.bz2
+tar -jxvf AdKTutorial.tar.bz2
+cd AdKTutorial</pre>
+</div>
+<p>A starting structure can be found in the <tt class="file docutils literal"><span class="pre">AdKTutorial/coord</span></tt>
+directory and MDP files are in <tt class="file docutils literal"><span class="pre">AdKTutorial/templates</span></tt>.</p>
+<p>Then work through the individual steps of the workflow:</p>
+<p class="rubric">Steps of the workflow</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="directory_organization.html">1. Directory organization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_setup.html">2. Setup of the solvated protein system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="energy_minimization.html">3. Energy minimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="position_restraints_MD.html">4. Position restraints MD</a></li>
+<li class="toctree-l1"><a class="reference internal" href="equilibrium_MD.html">5. Equilibrium molecular dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">6. Analysis</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<p class="rubric">Indices and tables</p>
+<ul class="simple">
+<li><a class="reference internal" href="references.html#references"><em>References</em></a></li>
+<li><a class="reference internal" href="search.html"><em>Search Page</em></a></li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Next topic</h4>
+  <p class="topless"><a href="directory_organization.html"
+                        title="next chapter">1. Directory organization</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/index.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="directory_organization.html" title="1. Directory organization"
+             >next</a> |</li>
+        <li><a href="#">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Oliver Beckstein.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

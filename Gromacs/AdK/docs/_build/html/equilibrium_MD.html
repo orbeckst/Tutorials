@@ -1,0 +1,302 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>5. Equilibrium molecular dynamics &mdash; Practical 13: AdK Tutorial 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="Practical 13: AdK Tutorial 1.0 documentation" href="index.html" />
+    <link rel="next" title="6. Analysis" href="analysis.html" />
+    <link rel="prev" title="4. Position restraints MD" href="position_restraints_MD.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="analysis.html" title="6. Analysis"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="position_restraints_MD.html" title="4. Position restraints MD"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="equilibrium-molecular-dynamics">
+<span id="equilibrium-md"></span><h1>5. Equilibrium molecular dynamics<a class="headerlink" href="#equilibrium-molecular-dynamics" title="Permalink to this headline">¶</a></h1>
+<p>Prepare the TPR input file based on the last frame of the
+<a class="reference internal" href="position_restraints_MD.html#position-restraints"><em>Position restraints MD</em></a> with <a class="reference external" href="http://manual.gromacs.org/current/online/grompp.html">grompp</a>:</p>
+<div class="highlight-python"><pre>grompp -f md.mdp -p ../top/4ake.top -c ../posres/posres.pdb -o md.tpr</pre>
+</div>
+<p>The <tt class="file docutils literal"><span class="pre">md.mdp</span></tt> file uses different algorithms from the
+<a class="reference internal" href="position_restraints_MD.html#position-restraints"><em>Position restraints MD</em></a> for the temperature and pressure coupling,
+which are known to reproduce the exact <em>NPT</em> ensemble distribution.</p>
+<p>You can run this simulation on <a class="reference internal" href="#running-on-saguaro"><em>saguaro</em></a>
+and/or on <a class="reference internal" href="#running-locally"><em>your local workstation</em></a> <a class="footnote-reference" href="#not-asu" id="id1">[1]</a>.</p>
+<div class="section" id="running-on-saguaro">
+<span id="id2"></span><h2>5.1. Running on saguaro<a class="headerlink" href="#running-on-saguaro" title="Permalink to this headline">¶</a></h2>
+<p>Log into <strong>saguaro</strong> (where <em>USERNAME</em> is your <a class="reference external" href="http://a2c2.asu.edu/resources/saguaro/">saguaro</a> login, see also
+<a class="reference external" href="http://a2c2.asu.edu/how-to-2/">How to login to saguaro</a>) <a class="footnote-reference" href="#not-asu" id="id3">[1]</a>:</p>
+<div class="highlight-python"><pre>ssh -l USERNAME saguaro.fulton.asu.edu</pre>
+</div>
+<p>and create a AdK directory in your scratch space (if possible you
+should always run from a scratch directory under
+<tt class="file docutils literal"><span class="pre">/scratch/$USER</span></tt> <a class="footnote-reference" href="#scratch" id="id4">[4]</a>):</p>
+<div class="highlight-python"><pre>cd /scratch/$USER
+mkdir AdK</pre>
+</div>
+<p>From your <strong>workstation</strong>, transfer the MD files to your saguaro scratch
+directory (replace <em>USERNAME</em> with your login name):</p>
+<div class="highlight-python"><pre>scp -r MD USERNAME@saguaro.fulton.asu.edu:/scratch/USERNAME</pre>
+</div>
+<p>On <strong>saguaro</strong>,</p>
+<div class="highlight-python"><pre>cd /scratch/$USER/AdK/MD</pre>
+</div>
+<p>Run simulations on saguaro on 32 cores with the <tt class="docutils literal"><span class="pre">-npme</span> <span class="pre">4</span></tt> option
+<a class="footnote-reference" href="#npme" id="id5">[3]</a> for 100 ps. Create a submission script <tt class="file docutils literal"><span class="pre">saguaro.pbs</span></tt>
+similar to the one below <a class="footnote-reference" href="#saguaro-account" id="id6">[2]</a>:</p>
+<div class="highlight-python"><pre>#!/bin/bash
+#PBS -N AdK
+#PBS -l nodes=32
+#PBS -l walltime=00:20:00
+#PBS -A phy598s113
+#PBS -j oe
+#PBS -o md.$PBS_JOBID.out
+
+# host: saguaro
+# queuing system: PBS
+
+# max run time in hours, 1 min = 0.0167
+WALL_HOURS=0.333
+
+DEFFNM=md
+TPR=$DEFFNM.tpr
+
+LIBDIR=/home/obeckste/Library
+
+cd $PBS_O_WORKDIR
+
+. $LIBDIR/Gromacs/versions/4.5.5/bin/GMXRC
+module load openmpi/1.4.5-intel-12.1
+
+MDRUN=$LIBDIR/Gromacs/versions/4.5.5/bin/mdrun_mpi
+
+# -noappend because apparently no file locking possible on Lustre (/scratch)
+mpiexec $MDRUN -npme 4 -s $TPR -deffnm $DEFFNM -maxh $WALL_HOURS -cpi -noappend</pre>
+</div>
+<p>Submit the job:</p>
+<div class="highlight-python"><pre>qsub saguaro.pbs</pre>
+</div>
+<p>This should not take longer than 20 mins. When done (check the log
+file that you have completed 100 ps), rename the output files:</p>
+<div class="highlight-python"><pre>mv md.part0001.gro md.gro
+mv md.part0001.edr md.edr
+mv md.part0001.xtc md.xtc
+mv md.part0001.log md.log</pre>
+</div>
+<p>(Don&#8217;t bother renaming the files if you need to
+perform a <a class="reference internal" href="#continuation-run"><em>continuation run</em></a> as described
+below.)</p>
+<p>Copy the files back to the workstation (on the <strong>workstation</strong>):</p>
+<div class="highlight-python"><pre>scp -r USERNAME@saguaro.fulton.asu.edu:/scratch/USERNAME/AdK/MD/* MD/</pre>
+</div>
+<p>and <a class="reference internal" href="analysis.html#analysis"><em>analyse locally</em></a> on the workstation.</p>
+<p class="rubric" id="continuation-run">Continuation runs</p>
+<p>If your job ran into a time limit and it was killed by the queuing
+system before it completed all steps then you can simply launch the
+simulation again from the same directory in order to <em>continue the
+run</em>. The checkpoint file <tt class="file docutils literal"><span class="pre">md.cpt</span></tt> must be present and you will
+later need <em>all output files</em> <tt class="file docutils literal"><span class="pre">md.part</span><em><span class="pre">NUMBER</span></em><span class="pre">.</span><em><span class="pre">EXT</span></em></tt> such as
+<tt class="file docutils literal"><span class="pre">md.part0001.xtc</span></tt>, <tt class="file docutils literal"><span class="pre">md.part0002.xtc</span></tt>,
+<tt class="file docutils literal"><span class="pre">md.part0001.edr</span></tt>, ... Simply run the queuing script again:</p>
+<div class="highlight-python"><pre>qsub saguaro.pbs</pre>
+</div>
+<p>The continuation works with the <tt class="code docutils literal"><span class="pre">-cpi</span></tt> flag of
+<strong class="program">mdrun</strong>. Unfortunately, on saguaro we also have to use the
+<tt class="code docutils literal"><span class="pre">-noappend</span></tt> flag, which writes separate files for each
+continuation run (<tt class="code docutils literal"><span class="pre">-append</span></tt> would append trajectories on the
+fly, i.e. you would only have files <tt class="file docutils literal"><span class="pre">md.xtc</span></tt>, <tt class="file docutils literal"><span class="pre">md.edr</span></tt>,
+<tt class="file docutils literal"><span class="pre">md.log</span></tt>... in your run directory). When a run with
+<tt class="code docutils literal"><span class="pre">-noappend</span></tt> is complete you have to use <a class="reference external" href="http://manual.gromacs.org/current/online/trjcat.html">trjcat</a> and <a class="reference external" href="http://manual.gromacs.org/current/online/eneconv.html">eneconv</a> to
+produce the final trajectory:</p>
+<div class="highlight-python"><pre>trjcat -f md.part*.xtc -o md.xtc
+eneconv -f md.part*.edr -o md.edr
+cat md.part*.log &gt; md.log
+mv md.part*.gro md.gro</pre>
+</div>
+<p>Check that the new trajectory is roughly the size of the combined
+parts <tt class="code docutils literal"><span class="pre">ls</span> <span class="pre">-la</span></tt> and then delete the parts.</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p>Make <em>sure</em> that you have correctly assembled your complete
+trajectory. It is costly to rerun your simulation!</p>
+<p class="last">You can also use <a class="reference external" href="http://manual.gromacs.org/current/online/gmxcheck.html">gmxcheck</a> to verify that your assembled
+trajectories are in order.</p>
+</div>
+<p>If you are positive that you don&#8217;t need the parts anymore, delete
+them:</p>
+<div class="highlight-python"><pre>rm md.part*.*</pre>
+</div>
+<p>Finally, copy back your files to your workstation for further
+<a class="reference internal" href="analysis.html#analysis"><em>Analysis</em></a>.</p>
+</div>
+<div class="section" id="running-on-your-local-workstation">
+<span id="running-locally"></span><h2>5.2. Running on your local workstation<a class="headerlink" href="#running-on-your-local-workstation" title="Permalink to this headline">¶</a></h2>
+<p>If your workstation has a decent number of cores or if you simply
+don&#8217;t mind waiting a bit longer you can also run the simulation as
+usual:</p>
+<div class="highlight-python"><pre>mdrun -v -stepout 10 -s md.tpr -deffnm md -cpi</pre>
+</div>
+<p>This will automatically utilize all available cores. The <tt class="code docutils literal"><span class="pre">-cpi</span></tt>
+flag indicates that you want Gromacs to continue from a previous
+run. You can kill the job with <tt class="kbd docutils literal"><span class="pre">CONTROL-C</span></tt>, look at the output,
+then continue with exactly the same command line</p>
+<div class="highlight-python"><pre>mdrun -v -stepout 10 -s md.tpr -deffnm md -cpi</pre>
+</div>
+<p>(Try it out!). The <tt class="code docutils literal"><span class="pre">-cpi</span></tt> flag can be used on the first run
+without harm. For a continuation to occur, Gromacs needs to find the
+checkpoint file <tt class="file docutils literal"><span class="pre">md.cpt</span></tt> and all output files (<tt class="file docutils literal"><span class="pre">md.xtc</span></tt>,
+<tt class="file docutils literal"><span class="pre">md.edr</span></tt>, <tt class="file docutils literal"><span class="pre">md.log</span></tt>) in the current directory.</p>
+<p class="rubric">Footnotes</p>
+<table class="docutils footnote" frame="void" id="not-asu" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[1]</td><td><em>(<a class="fn-backref" href="#id1">1</a>, <a class="fn-backref" href="#id3">2</a>)</em> If you are not at <a class="reference external" href="http://asu.edu">ASU</a> then you are unlikely to have
+access to <a class="reference external" href="http://a2c2.asu.edu/resources/saguaro/">saguaro</a>. You will have to adapt the recipe for your own
+supercomputer (ask a local expert for help) or just run the
+simulation <a class="reference internal" href="#running-locally"><em>on your workstation</em></a>.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="saguaro-account" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id6">[2]</a></td><td>If you have a login on saguaro but you are
+not a student of the <a class="reference external" href="http://becksteinlab.physics.asu.edu/learning/28/phy494-phy598-chm598-simulation-approaches-to-bio-and-nanophysics">PHY494/PHY598/CHM598 — Simulation approaches
+to Bio- and Nanophysics</a> class then you will need to change (at a
+minimum) the account to which your CPU-hours will be billed: change
+the line <tt class="samp docutils literal"><span class="pre">#PBS</span> <span class="pre">-A</span> <em><span class="pre">account</span></em></tt> so that you are using your
+research group&#8217;s <em>account</em>.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="npme" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id5">[3]</a></td><td><p class="first">The <tt class="samp docutils literal"><span class="pre">-npme</span> <em><span class="pre">NODES</span></em></tt> flag to <a class="reference external" href="http://manual.gromacs.org/current/online/mdrun.html">mdrun</a> is a performance
+optimization that only becomes important when running on larger
+numbers of cores (&gt;11). In most cases you do not need to worry
+about it and either set <tt class="code docutils literal"><span class="pre">-npme</span> <span class="pre">0</span></tt> or simply don&#8217;t supply the
+option. For larger simulations (e.g. if you are using Gromacs for
+your own projects you will want to optimize this setting with the
+help of the <a class="reference external" href="http://manual.gromacs.org/current/online/g_tune_pme.html">g_tune_pme</a> utility.)</p>
+<p class="last">For reference, with <tt class="code docutils literal"><span class="pre">-npme</span> <span class="pre">4</span></tt> on 32 cores on saguaro, the
+performance for the AdK system was 19 ns/d or 1.2 h/ns (about 6
+min for 100 ps).</p>
+</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="scratch" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id4">[4]</a></td><td>Scratch directories on saguaro have (nearly) unlimited
+space but are <strong>rigorously purged of all files older than 30
+days</strong>. They are not backed up. You must copy all data off to your
+local work station or loose your data.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">5. Equilibrium molecular dynamics</a><ul>
+<li><a class="reference internal" href="#running-on-saguaro">5.1. Running on saguaro</a></li>
+<li><a class="reference internal" href="#running-on-your-local-workstation">5.2. Running on your local workstation</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="position_restraints_MD.html"
+                        title="previous chapter">4. Position restraints MD</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="analysis.html"
+                        title="next chapter">6. Analysis</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/equilibrium_MD.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="analysis.html" title="6. Analysis"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="position_restraints_MD.html" title="4. Position restraints MD"
+             >previous</a> |</li>
+        <li><a href="index.html">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Oliver Beckstein.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,493 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>6. Analysis &mdash; Practical 13: AdK Tutorial 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="Practical 13: AdK Tutorial 1.0 documentation" href="index.html" />
+    <link rel="next" title="References" href="references.html" />
+    <link rel="prev" title="5. Equilibrium molecular dynamics" href="equilibrium_MD.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="references.html" title="References"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="equilibrium_MD.html" title="5. Equilibrium molecular dynamics"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="analysis">
+<span id="id1"></span><h1>6. Analysis<a class="headerlink" href="#analysis" title="Permalink to this headline">¶</a></h1>
+<p>Analysis should normally be performed locally on your workstation,
+i.e. copy back all the files from the supercomputer to your local
+directory. However, if you <em>must</em> run analysis on <a class="reference external" href="http://a2c2.asu.edu/resources/saguaro/">saguaro</a> then read
+the next section on <a class="reference internal" href="#analysis-saguaro"><em>analysis jobs on saguaro</em></a>.</p>
+<p>A typical analysis tasks reads the trajectory (XTC) or energy (EDR)
+file, computes quantities, and produces datafiles that can be plotted
+or processed further, e.g. using Python scripts. A strength of
+<a class="reference external" href="http://www.gromacs.org">Gromacs</a> is that it comes with a wide range of tools that each do one
+particular analysis task well (see the <a class="reference external" href="http://manual.gromacs.org/">Gromacs manual</a> and the
+<a class="reference external" href="http://www.gromacs.org/Documentation">Gromacs documentation</a>).</p>
+<p class="rubric" id="analysis-saguaro">Analysis jobs</p>
+<p>If you have to perform analysis on saguaro you will have to submit an
+analysis job. You must write your own submission script with the
+analysis commands included. It is important that you <strong>set the number
+of nodes to 1</strong> (<tt class="code docutils literal"><span class="pre">#PBS</span> <span class="pre">-l</span> <span class="pre">nodes=1</span></tt>) because no analysis tool can
+make use of multiple nodes and you would simply waste CPU-hours&#8212;we
+get billed for the requested nodes, not for what you actually use!</p>
+<p>An analysis submission script could be similar to the following:</p>
+<div class="highlight-python"><pre>#!/bin/bash
+#PBS -N analysis
+#PBS -l nodes=1
+#PBS -l walltime=00:10:00
+#PBS -A phy598s113
+#PBS -j oe
+#PBS -o analysis.$PBS_JOBID.out
+
+# host: saguaro
+# queuing system: PBS
+
+LIBDIR=/home/obeckste/Library
+
+cd $PBS_O_WORKDIR
+
+# use the serial executables (without MPI)
+. $LIBDIR/Gromacs/versions/serial-4.5.5/bin/GMXRC
+
+# example RMSD calculation; replace with your command
+printf "Calpha\nCalpha\n" | g_rms -s md.tpr -f md.xtc -n ca.ndx -o rmsd.xvg -fit rot+trans</pre>
+</div>
+<p>Note that <em>all required input files</em> must be present in the directory
+from which you are submitting.</p>
+<div class="section" id="trajectory-visualization">
+<span id="id2"></span><h2>6.1. Trajectory visualization<a class="headerlink" href="#trajectory-visualization" title="Permalink to this headline">¶</a></h2>
+<p>If you just look at the output trajectory <tt class="file docutils literal"><span class="pre">md.xtc</span></tt> in <a class="reference external" href="http://www.ks.uiuc.edu/Research/vmd/">VMD</a> then
+you will see that the protein can be split across the periodic
+boundaries and that the simulation cell just looks like a distorted
+prism. You should <em>recenter</em> the trajectory so that the protein is at
+the center, <em>remap</em> the water molecules (ans ions) to be located in a
+more convenient unitcell representation, and it is often desirable to
+<em>RMS-fit</em> the protein on a reference structure (such as the first
+frame in the trajectory) to remove overall translation and rotation.</p>
+<p>In Gromacs, the <a class="reference external" href="http://manual.gromacs.org/current/online/trjconv.html">trjconv</a> tool can do all these &#8220;trajectory conversion
+tasks&#8221;. The protocol is to (1) center and remap and (2) to RMS-fit
+(due to technical limitations in <strong class="program">trjconv</strong> you cannot do both
+at the same time). <strong class="program">trjconv</strong> asks the user a number of
+questions that depend on the chosen options. In the command line
+snippets below, this user input is directly fed to the standard input
+of <strong class="program">trjconv</strong> with the <tt class="kbd docutils literal"><span class="pre">printf</span> <span class="pre">TEXT</span> <span class="pre">|</span> <span class="pre">trjconv</span></tt> &#8220;pipe&#8221;
+construct. In order to better understand the command, run it
+interactively without the pipe construct and manually provide the
+required information.</p>
+<ol class="arabic">
+<li><p class="first">Center (<tt class="code docutils literal"><span class="pre">-center</span></tt>) on the <em>Protein</em> and remap all the molecules
+(<tt class="code docutils literal"><span class="pre">-pbc</span> <span class="pre">mol</span></tt>) of the whole <em>System</em>:</p>
+<div class="highlight-python"><pre>printf "Protein\nSystem\n" | trjconv -s md.tpr -f md.xtc -center -ur compact -pbc mol -o md_center.xtc</pre>
+</div>
+</li>
+<li><p class="first">RMS-fit (<tt class="code docutils literal"><span class="pre">-fit</span> <span class="pre">rot+trans</span></tt>) to the protein <em>backbone</em> atoms in
+the initial frame (supplied in the TPR file) and write out the
+whole <em>System</em>:</p>
+<div class="highlight-python"><pre>printf "Backbone\nSystem\n" | trjconv -s md.tpr -f md_center.xtc -fit rot+trans -o md_fit.xtc</pre>
+</div>
+</li>
+</ol>
+<p>Visualize in <a class="reference external" href="http://www.ks.uiuc.edu/Research/vmd/">VMD</a>:</p>
+<div class="highlight-python"><pre>vmd ../posres/posres.pdb md_fit.xtc</pre>
+</div>
+</div>
+<div class="section" id="observables">
+<h2>6.2. Observables<a class="headerlink" href="#observables" title="Permalink to this headline">¶</a></h2>
+<p>A number of interesting quantities and observables <a class="footnote-reference" href="#observable" id="id3">[1]</a> can
+be calculated with Gromacs tools. A selection is shown below but you
+are encouraged to read the <a class="reference external" href="http://manual.gromacs.org/">Gromacs manual</a> and the <a class="reference external" href="http://www.gromacs.org/Documentation">Gromacs
+documentation</a> to find out what else is available.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The online manual is the documentation for Gromacs 4.6.1 at the
+moment whereas we are using version 4.5.5. Some of the descriptions
+may vary slightly. If in doubt, check the help function (<tt class="kbd docutils literal"><span class="pre">-h</span></tt> or
+<tt class="kbd docutils literal"><span class="pre">man</span> <span class="pre">COMMAND</span></tt>) or the <a class="reference external" href="http://www.gromacs.org/&#64;api/deki/files/190/=manual-4.5.6.pdf">Gromacs 4.5.6 PDF</a> from the <a class="reference external" href="http://www.gromacs.org/Documentation/Manual">manual
+section</a>.</p>
+</div>
+<p class="rubric">Selection of Gromacs analysis tools</p>
+<dl class="docutils">
+<dt><a class="reference external" href="http://manual.gromacs.org/current/online/g_energy.html">g_energy</a></dt>
+<dd>basic thermodynamic properties of the system</dd>
+<dt><a class="reference external" href="http://manual.gromacs.org/current/online/g_rms.html">g_rms</a></dt>
+<dd>calculate the root mean square deviation from a reference structure</dd>
+<dt><a class="reference external" href="http://manual.gromacs.org/current/online/g_rmsf.html">g_rmsf</a></dt>
+<dd>calculate the per-residue root mean square fluctuations</dd>
+<dt><a class="reference external" href="http://manual.gromacs.org/current/online/g_gyrate.html">g_gyrate</a></dt>
+<dd>calculate the radius of gyration</dd>
+<dt><a class="reference external" href="http://manual.gromacs.org/current/online/g_dist.html">g_dist</a>, <a class="reference external" href="http://manual.gromacs.org/current/online/g_mindist.html">g_mindist</a></dt>
+<dd><p class="first">calculate the distance between atoms or groups of atoms (make a
+index file with <a class="reference external" href="http://manual.gromacs.org/current/online/make_ndx.html">make_ndx</a> to define the groups of
+interest). <strong class="program">g_mindist</strong> is especially useful to find water
+molecules close to a region of interest.</p>
+<p class="last">For AdK, look at the distance between the C<sub>α</sub> of K145 and I52.</p>
+</dd>
+<dt><a class="reference external" href="http://manual.gromacs.org/current/online/do_dssp.html">do_dssp</a></dt>
+<dd>Use the <a class="reference external" href="http://swift.cmbi.ru.nl/gv/dssp/">DSSP</a> algorithm <a class="reference internal" href="references.html#kabsch1983">[Kabsch1983]</a> to analyze the secondary structure
+(helices, sheets, ...).</dd>
+</dl>
+<div class="section" id="rmsd">
+<span id="id5"></span><h3>6.2.1. RMSD<a class="headerlink" href="#rmsd" title="Permalink to this headline">¶</a></h3>
+<p>The RMSD is the root mean squared Euclidean distance in <em>3N</em>
+configuration space as function of the time step,</p>
+<div class="math">
+\[\rho^{\mathrm{RMSD}}(t) = \sqrt{\frac{1}{N} \sum_{i=1}^{N}\left(\mathbf{r}_{i}(t) - \mathbf{r}_{i}^{\mathrm{ref}}\right)^2}\]</div>
+<p>between the current coordinates <span class="math">\(\mathbf{r}_{i}(t)\)</span> at time <em>t</em>
+and the reference coordinates <span class="math">\(\mathbf{r}_{i}^{\mathrm{ref}}\)</span>.</p>
+<p>We compute the C<sub>α</sub> <strong>RMSD</strong> with <a class="reference external" href="http://manual.gromacs.org/current/online/g_rms.html">g_rms</a> with respect to the
+reference starting structure (the one used for creating the <tt class="file docutils literal"><span class="pre">md.tpr</span></tt>
+file). Work in a separate analysis directory:</p>
+<div class="highlight-python"><pre>mkdir analysis/RMSD &amp;&amp; cd analysis/RMSD</pre>
+</div>
+<p>First we <strong>create an index file</strong> for the C<sub>α</sub> atoms
+<a class="footnote-reference" href="#default-ndx-groups" id="id6">[2]</a>. Use <a class="reference external" href="http://manual.gromacs.org/current/online/make_ndx.html">make_ndx</a> to create a file
+<tt class="file docutils literal"><span class="pre">ca.ndx</span></tt> that contains the C<sub>α</sub> atoms as an <em>index
+group</em>. Start <strong class="program">make_ndx</strong> and use <tt class="file docutils literal"><span class="pre">md.tpr</span></tt> as input; the
+output index file will be <tt class="file docutils literal"><span class="pre">ca.ndx</span></tt>:</p>
+<div class="highlight-python"><pre>make_ndx -f ../../MD/md.tpr -o CA.ndx</pre>
+</div>
+<p>Use <a class="reference external" href="http://manual.gromacs.org/current/online/make_ndx.html">make_ndx</a> interactively by typing the following commands <a class="footnote-reference" href="#scripted-make-ndx" id="id7">[3]</a>:</p>
+<div class="highlight-python"><pre>keep 1
+a CA
+name 1 Calpha
+q</pre>
+</div>
+<p>(This sequence of commands only retains the &#8220;Protein&#8221; default
+selection, then selects all atoms named &#8220;CA&#8221;, renames the newly
+created group to &#8220;Calpha&#8221;, and saves and exits.)</p>
+<p>You can look at <tt class="file docutils literal"><span class="pre">CA.ndx</span></tt> and see all the index numbers listed
+under the heading <tt class="docutils literal"><span class="pre">[</span> <span class="pre">Calpha</span> <span class="pre">]</span></tt>.</p>
+<p>Run <strong class="program">g_rms</strong>, using our newly defined group as the selection
+to fit and to compute the RMSD:</p>
+<div class="highlight-python"><pre>printf "Calpha\nCalpha\n" | g_rms -s ../../MD/md.tpr -f ../../MD/md.xtc -n CA.ndx -o rmsd.xvg -fit rot+trans</pre>
+</div>
+<p>Note that the units are nm.</p>
+<p>Plot the <tt class="docutils literal"><span class="pre">rmsd.xvg</span></tt> file as usual (you might want to use <tt class="kbd docutils literal"><span class="pre">g_rms</span>
+<span class="pre">-xvg</span> <span class="pre">none</span></tt> if you are processing with NumPy/matplotlib):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">numpy</span>
+<span class="n">t</span><span class="p">,</span><span class="n">rmsd</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="s">&quot;rmsd.xvg&quot;</span><span class="p">,</span> <span class="n">unpack</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span><span class="mf">2.5</span><span class="p">))</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">subplots_adjust</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s">&quot;time $t$ (ps)&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s">r&quot;C$_\alpha$ RMSD (nm)&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">rmsd</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s">&quot;blue&quot;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s">&quot;-&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">rmsd</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s">&quot;blue&quot;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s">&quot;-&quot;</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s">&quot;rmsd_ca.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s">&quot;rmsd_ca.svg&quot;</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s">&quot;rmsd_ca.pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="figure">
+<a class="reference internal image-reference" href="_images/rmsd_ca.svg"><img alt="RMSD timeseries" src="_images/rmsd_ca.svg" /></a>
+<p class="caption">Root mean square distance (RMSD) of the C<sub>α</sub> atoms of AdK from
+the initial simulation frame.</p>
+</div>
+</div>
+<div class="section" id="rmsf">
+<span id="id8"></span><h3>6.2.2. RMSF<a class="headerlink" href="#rmsf" title="Permalink to this headline">¶</a></h3>
+<p>The residue root mean square fluctuation <strong>RMSF</strong> is a measure of the
+flexibility of a residue. It is typically calculated for the C<sub>α</sub>
+atom of each residue and is then simply the square root of the
+variance of the fluctuation around the average position:</p>
+<div class="math">
+\[\rho^{\mathrm{RMSF}}_i = \sqrt{\left\langle
+     \left(\mathbf{r}_i - \langle \mathbf{r}_i \rangle \right)^2
+     \right\rangle}\]</div>
+<p>Use the <tt class="file docutils literal"><span class="pre">CA.ndx</span></tt> file from the <a class="reference internal" href="#rmsd"><em>RMSD</em></a> calculation with
+<a class="reference external" href="http://manual.gromacs.org/current/online/g_rmsf.html">g_rmsf</a>:</p>
+<div class="highlight-python"><pre>mkdir analysis/RMSF &amp;&amp; cd analysis/RMSF
+printf "Calpha\n" | g_rmsf -s ../../MD/md.tpr -f ../../MD/md.xtc -n ../RMSD/CA.ndx -o rmsf.xvg -fit</pre>
+</div>
+<p>A plot of <span class="math">\(\rho^{\mathrm{RMSF}}_{i}\)</span> versus residue number <em>i</em>
+shows the regions of high flexibility as peaks in the plot. Note that
+a 100-ps simulation might be too short to obtain a meaningful RMSF
+profile.</p>
+<div class="figure">
+<a class="reference internal image-reference" href="_images/rmsf_ca.svg"><img alt="Per-residue RMSF" src="_images/rmsf_ca.svg" /></a>
+<p class="caption">Root mean square fluctuation (RMSF) of the C<sub>α</sub> atoms of AdK.</p>
+</div>
+<p class="rubric">Comparison with crystallographic B-factors</p>
+<p>You can compare the RMSF to the isotropic atomic crystallographic
+B-factors, which are related by <a class="reference internal" href="references.html#willis1975">[Willis1975]</a></p>
+<div class="math">
+\[B_{i} = \frac{8\pi^2}{3} (\rho^{\mathrm{RMSF}}_{i})^2\]</div>
+<p>(In this case you would want to calculate the RMSF for all heavy
+(i.e. non-hydrogen) atoms. You don&#8217;t need to build and use a separate
+index file file: simply choose the default group &#8220;Protein-H&#8221; (&#8220;protein
+without hydrogens&#8221;)).</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Gromacs RMSF are in units of nm and B-factors are
+typically measured in Å<sup>2</sup>.</p>
+</div>
+<p>It is straightforward to write Python code that calculates the
+B-factor from the RMSF in <tt class="file docutils literal"><span class="pre">rmsf.xvg</span></tt> and it is also easy to
+extract the B-factor (&#8220;temperatureFactor&#8221;) from columns 61-66 in the
+<a class="reference external" href="http://www.wwpdb.org/documentation/format33/sect9.html#ATOM">ATOM record of a PDB file</a>.</p>
+</div>
+<div class="section" id="distances">
+<h3>6.2.3. Distances<a class="headerlink" href="#distances" title="Permalink to this headline">¶</a></h3>
+<p>Distances can be a very useful observable to track conformational
+changes. They can often be directly related to real experimental
+observables such as NOEs from NMR experiments or distances from
+cross-linking or FRET experiments.</p>
+<p>Here we calculate a simple distance between two C<sub>α</sub> atoms as an
+approximation to the distance between two chromophores attached to the
+correspoding residues isoleucine 52 (<em>I52</em>) and lysine 145 (<em>K145</em>) used
+in a FRET experiment <a class="reference internal" href="references.html#henzler-wildman2007">[Henzler-Wildman2007]</a>.</p>
+<p>First we need to create an index file containing the two groups:</p>
+<div class="highlight-python"><pre>mkdir -p analysis/dist/I52_K145 &amp;&amp; cd analysis/dist/I52_K145
+make_ndx -f ../../../MD/md.tpr -o I52_K145.ndx</pre>
+</div>
+<p>Use interactive commands like the following <a class="footnote-reference" href="#ndx-selections" id="id11">[4]</a>:</p>
+<div class="highlight-python"><pre>keep 0
+del 0
+r 52 &amp; a CA
+name 0 I52
+r 145 &amp; a CA
+name 1 K145
+q</pre>
+</div>
+<p>to generate the index file <tt class="file docutils literal"><span class="pre">I52_K145.ndx</span></tt>.</p>
+<p>The run <a class="reference external" href="http://manual.gromacs.org/current/online/g_dist.html">g_dist</a> and compute the distance between the two atoms:</p>
+<div class="highlight-python"><pre>printf "I52\nK145\n" | g_dist -s ../../../MD/md.tpr -f ../../../MD/md.xtc -n I52_K145.ndx -o dist.xvg</pre>
+</div>
+<p>The <tt class="file docutils literal"><span class="pre">dist.xvg</span></tt> file contains the distance in nm for each time
+step in ps.</p>
+<div class="figure">
+<a class="reference internal image-reference" href="_images/d_I52_K145_ca.svg"><img alt="Timeseries of the distance between |Calpha| atoms of I52 and K145." src="_images/d_I52_K145_ca.svg" /></a>
+<p class="caption">Timeseries of the distance between the C<sub>α</sub> atoms of I52 (NMP
+domain) and K145 (LID domain).</p>
+</div>
+<p>(You can also use the centered and fitted trajectory
+<tt class="file docutils literal"><span class="pre">md_fit.xtc</span></tt> as an input instead of <tt class="file docutils literal"><span class="pre">md.xtc</span></tt> to make sure
+that the distance calculation does not contain any jumps due to
+periodic boundary effects, or use <a class="reference external" href="http://manual.gromacs.org/current/online/g_mindist.html">g_mindist</a>.)</p>
+<div class="admonition-see-also admonition seealso">
+<p class="first admonition-title">See also</p>
+<p class="last"><a class="reference internal" href="references.html#beckstein2009">[Beckstein2009]</a> for a discussion of FRET distances in AdK.</p>
+</div>
+</div>
+<div class="section" id="radius-of-gyration">
+<h3>6.2.4. Radius of gyration<a class="headerlink" href="#radius-of-gyration" title="Permalink to this headline">¶</a></h3>
+<p>The radius of gyration measures the compactness of a protein
+structure.</p>
+<div class="math">
+\[R_\mathrm{gyr}^2 = \frac{1}{M}\sum_{i=1}^{N} m_i(\mathbf{r}_i - \mathbf{R})^2\]</div>
+<p>where <span class="math">\(M = \sum_{i=1}^{N} m_i\)</span> is the total mass and
+<span class="math">\(\mathbf{R} = N^{-1}\sum_{i=1}^{N} \mathbf{r}_i\)</span> is the center of
+mass of the protein consisting of <span class="math">\(N\)</span> atoms.</p>
+<p>The Gromacs tool <a class="reference external" href="http://manual.gromacs.org/current/online/g_gyrate.html">g_gyrate</a> can be used to compute it.</p>
+<div class="figure">
+<a class="reference internal image-reference" href="_images/rgyr.svg"><img alt="Timeseries of the radius of gyration." src="_images/rgyr.svg" /></a>
+<p class="caption">Timeseries of the radius of gyration computed for the whole
+protein.</p>
+</div>
+</div>
+<div class="section" id="secondary-structure">
+<h3>6.2.5. Secondary structure<a class="headerlink" href="#secondary-structure" title="Permalink to this headline">¶</a></h3>
+<p class="rubric">Installation of DSSP</p>
+<p>In order to use the Gromacs <a class="reference external" href="http://manual.gromacs.org/current/online/do_dssp.html">do_dssp</a> command you need to install an
+additional program, the <strong class="program">dsspcmbi</strong> executable that performs
+the <a class="reference external" href="http://swift.cmbi.ru.nl/gv/dssp/">DSSP</a> algorithm <a class="reference internal" href="references.html#kabsch1983">[Kabsch1983]</a>:</p>
+<ul>
+<li><p class="first">put the provided <tt class="file docutils literal"><span class="pre">bin/MacOSX/dsspcmbi</span></tt> Mac OS X executable into your
+<tt class="file docutils literal"><span class="pre">~/opt/bin</span></tt> directory on your workstation:</p>
+<div class="highlight-python"><pre>cp bin/MacOSX/dsspcmbi ~/opt/bin</pre>
+</div>
+<p>(If you are using your own Linux machine you can try using the
+<tt class="file docutils literal"><span class="pre">bin/Linux/dsspcmbi</span></tt> or you will need to download the <a class="reference external" href="http://swift.cmbi.ru.nl/gv/dssp/">DSSP</a>
+source code (&#8220;DSSPold&#8221;) yourself and compile it.)</p>
+</li>
+<li><p class="first">set the environment variable <span class="target" id="index-0"></span><tt class="xref std std-envvar docutils literal"><span class="pre">DSSP</span></tt> in your
+<tt class="file docutils literal"><span class="pre">~/opt/bin/GMXRC.bash</span></tt> Gromacs startup file to tell the
+Gromacs tool <strong class="program">do_dssp</strong> where to find <strong class="program">dsspcmbi</strong>:</p>
+<div class="highlight-python"><pre>export DSSP=$HOME/opt/bin/dsspcmbi</pre>
+</div>
+<p>(You may also set <span class="target" id="index-1"></span><tt class="xref std std-envvar docutils literal"><span class="pre">DSSP</span></tt> it in your <tt class="file docutils literal"><span class="pre">~/.profile</span></tt> bash
+startup file.)</p>
+</li>
+</ul>
+<p>You only have to install <strong class="program">dsspcmbi</strong> once.</p>
+<p class="rubric"><strong class="program">do_dssp</strong> analysis</p>
+<p>Install <a class="reference external" href="http://swift.cmbi.ru.nl/gv/dssp/">DSSP</a> as described above. Look at the options of <a class="reference external" href="http://manual.gromacs.org/current/online/do_dssp.html">do_dssp</a>.</p>
+<p class="rubric">Footnotes</p>
+<table class="docutils footnote" frame="void" id="observable" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id3">[1]</a></td><td>&#8220;Observable&#8221; is used in the widest sense in that we
+know an estimator function of all or a subset of the system&#8217;s phase
+space coordinates that is averaged to provide a quantity of
+interest. In many cases it requires considerable more work to
+connect such an &#8220;observable&#8221; to a true experimental observable that
+is measured in an experiment.</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="default-ndx-groups" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id6">[2]</a></td><td><p class="first">Actually, we don&#8217;t need to create the index
+group for the C<sub>α</sub> atoms ourselves because Gromacs
+automatically creates the group &#8220;C-alpha&#8221; as one of many default
+groups (other are &#8220;Protein&#8221;, &#8220;Protein-H&#8221; (only protein heavy
+atoms), &#8220;Backbone&#8221; (N CA C), &#8220;Water&#8221;, &#8220;non-Protein&#8221; (i.e. water and
+ions in our case but could also contain other groups such as drug
+molecule or a lipid membrane in more complicated simulations),
+&#8220;Water_and_ions&#8221;. You can see these index groups if you just run
+<strong class="program">make_ndx</strong> on an input structure or if you interactively
+select groups in <strong class="program">trjconv</strong>, <strong class="program">g_rms</strong>, ...</p>
+<p class="last">However, making the &#8220;Calpha&#8221; group yourself is a good exercise
+because in many cases there are no default index groups for the
+analysis you might want to do.</p>
+</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="scripted-make-ndx" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id7">[3]</a></td><td><p class="first">In scripts you can pipe all the interactive
+commands to <a class="reference external" href="http://manual.gromacs.org/current/online/make_ndx.html">make_ndx</a> by using the <tt class="code docutils literal"><span class="pre">printf</span> <span class="pre">...</span> <span class="pre">|</span> <span class="pre">make_ndx</span></tt>
+trick:</p>
+<div class="highlight-python"><pre>printf "keep 0\ndel 0\na CA\nname 0 Calpha\nq\n" | make_ndx -f ../../MD/md.tpr -o CA.ndx</pre>
+</div>
+<p class="last">This will accomplish the same thing as the interactive use
+described above.</p>
+</td></tr>
+</tbody>
+</table>
+<table class="docutils footnote" frame="void" id="ndx-selections" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id11">[4]</a></td><td>Note that one has to be careful when selecting
+residue ids in <strong class="program">make_ndx</strong>. It is often the case that a PDB
+file does not contain all residues, e.g. residues 1&#8211;8 might be
+unresolved in the experiment and thus are missing from the PDB
+file. The file then simply starts with residue number 9. Gromacs,
+however, typically <em>renumbers residues so that they start at
+1</em>. Thus, in this hypothetical case, a residue that might be
+referred to in the literature as &#8220;residue 100&#8221; might actually be
+residue 92 in the simulation (<span class="math">\(N^\mathrm{sim}_\mathrm{res} =
+N^\mathrm{PDB}_\mathrm{res} - (\mathrm{min}
+N^\mathrm{PDB}_\mathrm{res} - 1)\)</span>). Thus, if you wanted to select
+the C<sub>α</sub> atom of residue 100 you would need to select <tt class="kbd docutils literal"><span class="pre">r</span>
+<span class="pre">92</span> <span class="pre">&amp;</span> <span class="pre">a</span> <span class="pre">CA</span></tt> in <strong class="program">make_ndx</strong>.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">6. Analysis</a><ul>
+<li><a class="reference internal" href="#trajectory-visualization">6.1. Trajectory visualization</a></li>
+<li><a class="reference internal" href="#observables">6.2. Observables</a><ul>
+<li><a class="reference internal" href="#rmsd">6.2.1. RMSD</a></li>
+<li><a class="reference internal" href="#rmsf">6.2.2. RMSF</a></li>
+<li><a class="reference internal" href="#distances">6.2.3. Distances</a></li>
+<li><a class="reference internal" href="#radius-of-gyration">6.2.4. Radius of gyration</a></li>
+<li><a class="reference internal" href="#secondary-structure">6.2.5. Secondary structure</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="equilibrium_MD.html"
+                        title="previous chapter">5. Equilibrium molecular dynamics</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="references.html"
+                        title="next chapter">References</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/analysis.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="references.html" title="References"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="equilibrium_MD.html" title="5. Equilibrium molecular dynamics"
+             >previous</a> |</li>
+        <li><a href="index.html">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Oliver Beckstein.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

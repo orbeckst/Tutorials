@@ -1,0 +1,242 @@
+.. -*- encoding: utf-8 -*-
+
+.. |kJ/mol/nm**2| replace:: kJ mol\ :sup:`-1` nm\ :sup:`-2`
+.. |Calpha| replace:: C\ :sub:`α`
+
+.. _equilibrium-MD:
+
+Equilibrium molecular dynamics
+==============================
+
+Prepare the TPR input file based on the last frame of the
+:ref:`position-restraints` with grompp_::
+
+   grompp -f md.mdp -p ../top/4ake.top -c ../posres/posres.pdb -o md.tpr
+
+The :file:`md.mdp` file uses different algorithms from the
+:ref:`position-restraints` for the temperature and pressure coupling,
+which are known to reproduce the exact *NPT* ensemble distribution.
+
+You can run this simulation on :ref:`saguaro <running-on-saguaro>`
+and/or on :ref:`your local workstation <running-locally>` [#not_ASU]_.
+
+.. _running-on-saguaro:
+
+Running on saguaro
+------------------
+
+Log into **saguaro** (where *USERNAME* is your saguaro_ login, see also
+`How to login to saguaro`_) [#not_ASU]_::
+
+ ssh -l USERNAME saguaro.fulton.asu.edu
+
+and create a AdK directory in your scratch space (if possible you
+should always run from a scratch directory under
+:file:`/scratch/$USER` [#scratch]_)::
+
+ cd /scratch/$USER
+ mkdir AdK
+
+From your **workstation**, transfer the MD files to your saguaro scratch
+directory (replace *USERNAME* with your login name)::
+
+ scp -r MD USERNAME@saguaro.fulton.asu.edu:/scratch/USERNAME
+
+On **saguaro**, ::
+
+ cd /scratch/$USER/AdK/MD
+  
+Run simulations on saguaro on 32 cores with the ``-npme 4`` option
+[#npme]_ for 100 ps. Create a submission script :file:`saguaro.pbs`
+similar to the one below [#saguaro-account]_::
+
+   #!/bin/bash
+   #PBS -N AdK
+   #PBS -l nodes=32
+   #PBS -l walltime=00:20:00
+   #PBS -A phy598s113
+   #PBS -j oe
+   #PBS -o md.$PBS_JOBID.out
+
+   # host: saguaro
+   # queuing system: PBS
+
+   # max run time in hours, 1 min = 0.0167
+   WALL_HOURS=0.333
+
+   DEFFNM=md
+   TPR=$DEFFNM.tpr
+
+   LIBDIR=/home/obeckste/Library
+
+   cd $PBS_O_WORKDIR
+
+   . $LIBDIR/Gromacs/versions/4.5.5/bin/GMXRC
+   module load openmpi/1.4.5-intel-12.1
+
+   MDRUN=$LIBDIR/Gromacs/versions/4.5.5/bin/mdrun_mpi
+
+   # -noappend because apparently no file locking possible on Lustre (/scratch)
+   mpiexec $MDRUN -npme 4 -s $TPR -deffnm $DEFFNM -maxh $WALL_HOURS -cpi -noappend
+
+Submit the job::
+
+ qsub saguaro.pbs
+
+This should not take longer than 20 mins. When done (check the log
+file that you have completed 100 ps), rename the output files::
+
+  mv md.part0001.gro md.gro
+  mv md.part0001.edr md.edr
+  mv md.part0001.xtc md.xtc
+  mv md.part0001.log md.log
+
+(Don't bother renaming the files if you need to
+perform a :ref:`continuation run<continuation-run>` as described
+below.)
+
+Copy the files back to the workstation (on the **workstation**)::
+
+ scp -r USERNAME@saguaro.fulton.asu.edu:/scratch/USERNAME/AdK/MD/* MD/
+
+and :ref:`analyse locally <analysis>` on the workstation. 
+
+.. _continuation-run:
+.. rubric:: Continuation runs
+
+If your job ran into a time limit and it was killed by the queuing
+system before it completed all steps then you can simply launch the
+simulation again from the same directory in order to *continue the
+run*. The checkpoint file :file:`md.cpt` must be present and you will
+later need *all output files* :file:`md.part{NUMBER}.{EXT}` such as
+:file:`md.part0001.xtc`, :file:`md.part0002.xtc`,
+:file:`md.part0001.edr`, ... Simply run the queuing script again::
+
+  qsub saguaro.pbs
+
+The continuation works with the :code:`-cpi` flag of
+:program:`mdrun`. Unfortunately, on saguaro we also have to use the
+:code:`-noappend` flag, which writes separate files for each
+continuation run (:code:`-append` would append trajectories on the
+fly, i.e. you would only have files :file:`md.xtc`, :file:`md.edr`,
+:file:`md.log`... in your run directory). When a run with
+:code:`-noappend` is complete you have to use trjcat_ and eneconv_ to
+produce the final trajectory::
+
+  trjcat -f md.part*.xtc -o md.xtc
+  eneconv -f md.part*.edr -o md.edr
+  cat md.part*.log > md.log
+  mv md.part*.gro md.gro
+
+Check that the new trajectory is roughly the size of the combined
+parts :code:`ls -la` and then delete the parts.
+
+.. warning:: 
+
+   Make *sure* that you have correctly assembled your complete
+   trajectory. It is costly to rerun your simulation!
+
+   You can also use gmxcheck_ to verify that your assembled
+   trajectories are in order.
+
+If you are positive that you don't need the parts anymore, delete
+them::
+
+  rm md.part*.*
+
+Finally, copy back your files to your workstation for further
+:ref:`analysis`.
+
+
+.. _running-locally:
+
+Running on your local workstation
+---------------------------------
+
+If your workstation has a decent number of cores or if you simply
+don't mind waiting a bit longer you can also run the simulation as
+usual::
+
+ mdrun -v -stepout 10 -s md.tpr -deffnm md -cpi
+
+This will automatically utilize all available cores. The :code:`-cpi`
+flag indicates that you want Gromacs to continue from a previous
+run. You can kill the job with :kbd:`CONTROL-C`, look at the output,
+then continue with exactly the same command line ::
+
+ mdrun -v -stepout 10 -s md.tpr -deffnm md -cpi
+
+(Try it out!). The :code:`-cpi` flag can be used on the first run
+without harm. For a continuation to occur, Gromacs needs to find the
+checkpoint file :file:`md.cpt` and all output files (:file:`md.xtc`,
+:file:`md.edr`, :file:`md.log`) in the current directory.
+
+.. _`AdKTutorial.tar.bz2`:
+    http://becksteinlab.physics.asu.edu/pages/courses/2013/SimBioNano/13/AdKTutorial.tar.bz2
+.. _4AKE: http://www.rcsb.org/pdb/explore.do?structureId=4ake
+.. _pdb2gmx: http://manual.gromacs.org/current/online/pdb2gmx.html
+.. _editconf: http://manual.gromacs.org/current/online/editconf.html
+.. _genbox: http://manual.gromacs.org/current/online/genbox.html
+.. _genion: http://manual.gromacs.org/current/online/genion.html
+.. _trjconv: http://manual.gromacs.org/current/online/trjconv.html
+.. _trjcat: http://manual.gromacs.org/current/online/trjcat.html
+.. _eneconv: http://manual.gromacs.org/current/online/eneconv.html
+.. _grompp: http://manual.gromacs.org/current/online/grompp.html
+.. _mdrun: http://manual.gromacs.org/current/online/mdrun.html
+.. _`mdp options`: http://manual.gromacs.org/current/online/mdp_opt.html
+.. _`Run control options in the MDP file`: http://manual.gromacs.org/current/online/mdp_opt.html#run
+.. _`make_ndx`: http://manual.gromacs.org/current/online/make_ndx.html
+.. _`g_tune_pme`: http://manual.gromacs.org/current/online/g_tune_pme.html
+.. _gmxcheck: http://manual.gromacs.org/current/online/gmxcheck.html
+
+.. _Gromacs manual: http://manual.gromacs.org/
+.. _Gromacs documentation: http://www.gromacs.org/Documentation
+.. _`Gromacs 4.5.6 PDF`: http://www.gromacs.org/@api/deki/files/190/=manual-4.5.6.pdf
+.. _manual section: http://www.gromacs.org/Documentation/Manual
+
+.. _`g_rms`: http://manual.gromacs.org/current/online/g_rms.html
+.. _`g_rmsf`: http://manual.gromacs.org/current/online/g_rmsf.html
+.. _`g_gyrate`: http://manual.gromacs.org/current/online/g_gyrate.html
+.. _`g_dist`: http://manual.gromacs.org/current/online/g_dist.html
+.. _`g_mindist`: http://manual.gromacs.org/current/online/g_mindist.html
+.. _`do_dssp`: http://manual.gromacs.org/current/online/do_dssp.html
+
+.. _DSSP: http://swift.cmbi.ru.nl/gv/dssp/
+.. _`ATOM record of a PDB file`: http://www.wwpdb.org/documentation/format33/sect9.html#ATOM
+
+.. _saguaro: http://a2c2.asu.edu/resources/saguaro/
+.. _`How to login to saguaro`: http://a2c2.asu.edu/how-to-2/
+.. _ASU: http://asu.edu
+.. _`PHY494/PHY598/CHM598 — Simulation approaches to Bio- and Nanophysics`:
+   http://becksteinlab.physics.asu.edu/learning/28/phy494-phy598-chm598-simulation-approaches-to-bio-and-nanophysics
+
+.. rubric:: Footnotes
+
+.. [#not_ASU] If you are not at ASU_ then you are unlikely to have
+   access to saguaro_. You will have to adapt the recipe for your own
+   supercomputer (ask a local expert for help) or just run the
+   simulation :ref:`on your workstation <running-locally>`.
+
+.. [#saguaro-account] If you have a login on saguaro but you are
+   not a student of the `PHY494/PHY598/CHM598 — Simulation approaches
+   to Bio- and Nanophysics`_ class then you will need to change (at a
+   minimum) the account to which your CPU-hours will be billed: change
+   the line :samp:`#PBS -A {account}` so that you are using your
+   research group's *account*.
+
+.. [#npme] The :samp:`-npme {NODES}` flag to mdrun_ is a performance
+   optimization that only becomes important when running on larger
+   numbers of cores (>11). In most cases you do not need to worry
+   about it and either set :code:`-npme 0` or simply don't supply the
+   option. For larger simulations (e.g. if you are using Gromacs for
+   your own projects you will want to optimize this setting with the
+   help of the `g_tune_pme`_ utility.)
+
+   For reference, with :code:`-npme 4` on 32 cores on saguaro, the
+   performance for the AdK system was 19 ns/d or 1.2 h/ns (about 6
+   min for 100 ps).
+
+.. [#scratch] Scratch directories on saguaro have (nearly) unlimited
+   space but are **rigorously purged of all files older than 30
+   days**. They are not backed up. You must copy all data off to your
+   local work station or loose your data.

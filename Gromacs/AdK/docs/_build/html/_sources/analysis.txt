@@ -1,0 +1,531 @@
+.. -*- encoding: utf-8 -*-
+
+.. |kJ/mol/nm**2| replace:: kJ mol\ :sup:`-1` nm\ :sup:`-2`
+.. |Calpha| replace:: C\ :sub:`α`
+
+.. _analysis:
+
+Analysis
+========
+
+Analysis should normally be performed locally on your workstation,
+i.e. copy back all the files from the supercomputer to your local
+directory. However, if you *must* run analysis on saguaro_ then read
+the next section on :ref:`analysis jobs on saguaro
+<analysis-saguaro>`.
+
+A typical analysis tasks reads the trajectory (XTC) or energy (EDR)
+file, computes quantities, and produces datafiles that can be plotted
+or processed further, e.g. using Python scripts. A strength of
+Gromacs_ is that it comes with a wide range of tools that each do one
+particular analysis task well (see the `Gromacs manual`_ and the
+`Gromacs documentation`_).
+
+
+.. _analysis-saguaro:
+.. rubric:: Analysis jobs
+
+If you have to perform analysis on saguaro you will have to submit an
+analysis job. You must write your own submission script with the
+analysis commands included. It is important that you **set the number
+of nodes to 1** (:code:`#PBS -l nodes=1`) because no analysis tool can
+make use of multiple nodes and you would simply waste CPU-hours---we
+get billed for the requested nodes, not for what you actually use!
+
+An analysis submission script could be similar to the following::
+
+   #!/bin/bash
+   #PBS -N analysis
+   #PBS -l nodes=1
+   #PBS -l walltime=00:10:00
+   #PBS -A phy598s113
+   #PBS -j oe
+   #PBS -o analysis.$PBS_JOBID.out
+
+   # host: saguaro
+   # queuing system: PBS
+
+   LIBDIR=/home/obeckste/Library
+
+   cd $PBS_O_WORKDIR
+
+   # use the serial executables (without MPI)
+   . $LIBDIR/Gromacs/versions/serial-4.5.5/bin/GMXRC
+
+   # example RMSD calculation; replace with your command   
+   printf "Calpha\nCalpha\n" | g_rms -s md.tpr -f md.xtc -n ca.ndx -o rmsd.xvg -fit rot+trans
+
+Note that *all required input files* must be present in the directory
+from which you are submitting.
+
+
+.. _trajectory-visualization:
+
+Trajectory visualization
+------------------------
+
+If you just look at the output trajectory :file:`md.xtc` in VMD_ then
+you will see that the protein can be split across the periodic
+boundaries and that the simulation cell just looks like a distorted
+prism. You should *recenter* the trajectory so that the protein is at
+the center, *remap* the water molecules (ans ions) to be located in a
+more convenient unitcell representation, and it is often desirable to
+*RMS-fit* the protein on a reference structure (such as the first
+frame in the trajectory) to remove overall translation and rotation.
+
+In Gromacs, the trjconv_ tool can do all these "trajectory conversion
+tasks". The protocol is to (1) center and remap and (2) to RMS-fit
+(due to technical limitations in :program:`trjconv` you cannot do both
+at the same time). :program:`trjconv` asks the user a number of
+questions that depend on the chosen options. In the command line
+snippets below, this user input is directly fed to the standard input
+of :program:`trjconv` with the :kbd:`printf TEXT | trjconv` "pipe"
+construct. In order to better understand the command, run it
+interactively without the pipe construct and manually provide the
+required information.
+
+1. Center (:code:`-center`) on the *Protein* and remap all the molecules
+   (:code:`-pbc mol`) of the whole *System*::
+
+     printf "Protein\nSystem\n" | trjconv -s md.tpr -f md.xtc -center -ur compact -pbc mol -o md_center.xtc
+
+2. RMS-fit (:code:`-fit rot+trans`) to the protein *backbone* atoms in
+   the initial frame (supplied in the TPR file) and write out the
+   whole *System*::
+
+     printf "Backbone\nSystem\n" | trjconv -s md.tpr -f md_center.xtc -fit rot+trans -o md_fit.xtc
+
+Visualize in VMD_::
+
+ vmd ../posres/posres.pdb md_fit.xtc
+
+
+
+Observables
+-----------
+
+A number of interesting quantities and observables [#observable]_ can
+be calculated with Gromacs tools. A selection is shown below but you
+are encouraged to read the `Gromacs manual`_ and the `Gromacs
+documentation`_ to find out what else is available.
+
+.. Note::
+
+   The online manual is the documentation for Gromacs 4.6.1 at the
+   moment whereas we are using version 4.5.5. Some of the descriptions
+   may vary slightly. If in doubt, check the help function (:kbd:`-h` or
+   :kbd:`man COMMAND`) or the `Gromacs 4.5.6 PDF`_ from the `manual
+   section`_.
+
+.. rubric:: Selection of Gromacs analysis tools
+
+`g_energy`_
+    basic thermodynamic properties of the system
+
+`g_rms`_
+    calculate the root mean square deviation from a reference structure
+
+`g_rmsf`_
+    calculate the per-residue root mean square fluctuations
+
+`g_gyrate`_
+    calculate the radius of gyration
+
+`g_dist`_, `g_mindist`_
+    calculate the distance between atoms or groups of atoms (make a
+    index file with `make_ndx`_ to define the groups of
+    interest). :program:`g_mindist` is especially useful to find water
+    molecules close to a region of interest.
+
+    For AdK, look at the distance between the |Calpha| of K145 and I52.
+
+`do_dssp`_
+    Use the DSSP_ algorithm [Kabsch1983]_ to analyze the secondary structure
+    (helices, sheets, ...). 
+
+
+.. _RMSD:
+
+RMSD
+~~~~
+
+The RMSD is the root mean squared Euclidean distance in *3N*
+configuration space as function of the time step,
+
+.. math::
+
+   \rho^{\mathrm{RMSD}}(t) = \sqrt{\frac{1}{N} \sum_{i=1}^{N}\left(\mathbf{r}_{i}(t) - \mathbf{r}_{i}^{\mathrm{ref}}\right)^2}
+
+between the current coordinates :math:`\mathbf{r}_{i}(t)` at time *t*
+and the reference coordinates :math:`\mathbf{r}_{i}^{\mathrm{ref}}`.
+
+We compute the |Calpha| **RMSD** with `g_rms`_ with respect to the
+reference starting structure (the one used for creating the :file:`md.tpr`
+file). Work in a separate analysis directory::
+
+  mkdir analysis/RMSD && cd analysis/RMSD
+
+First we **create an index file** for the |Calpha| atoms
+[#default_ndx_groups]_. Use `make_ndx`_ to create a file
+:file:`ca.ndx` that contains the |Calpha| atoms as an *index
+group*. Start :program:`make_ndx` and use :file:`md.tpr` as input; the
+output index file will be :file:`ca.ndx`::
+
+  make_ndx -f ../../MD/md.tpr -o CA.ndx
+
+Use `make_ndx`_ interactively by typing the following commands [#scripted_make_ndx]_::
+
+  keep 1
+  a CA
+  name 1 Calpha
+  q
+
+(This sequence of commands only retains the "Protein" default
+selection, then selects all atoms named "CA", renames the newly
+created group to "Calpha", and saves and exits.)
+
+You can look at :file:`CA.ndx` and see all the index numbers listed
+under the heading ``[ Calpha ]``.
+
+Run :program:`g_rms`, using our newly defined group as the selection
+to fit and to compute the RMSD::
+
+  printf "Calpha\nCalpha\n" | g_rms -s ../../MD/md.tpr -f ../../MD/md.xtc -n CA.ndx -o rmsd.xvg -fit rot+trans
+
+Note that the units are nm.
+
+Plot the ``rmsd.xvg`` file as usual (you might want to use :kbd:`g_rms
+-xvg none` if you are processing with NumPy/matplotlib)::
+
+ import matplotlib.pyplot as plt
+ import numpy
+ t,rmsd = numpy.loadtxt("rmsd.xvg", unpack=True)
+ fig = plt.figure(figsize=(5,2.5)) 
+ ax = fig.add_subplot(111)
+ fig.subplots_adjust(bottom=0.2)
+ ax.set_xlabel("time $t$ (ps)")
+ ax.set_ylabel(r"C$_\alpha$ RMSD (nm)")
+ ax.fill_between(t,rmsd, color="blue", linestyle="-", alpha=0.1) 
+ ax.plot(t,rmsd, color="blue", linestyle="-") 
+ fig.savefig("rmsd_ca.png", dpi=300)
+ fig.savefig("rmsd_ca.svg")
+ fig.savefig("rmsd_ca.pdf")
+
+.. figure:: /figures/rmsd_ca.*
+   :scale: 80%
+   :alt: RMSD timeseries
+   
+   Root mean square distance (RMSD) of the |Calpha| atoms of AdK from
+   the initial simulation frame.
+   
+
+.. _RMSF:
+
+RMSF
+~~~~
+
+The residue root mean square fluctuation **RMSF** is a measure of the
+flexibility of a residue. It is typically calculated for the |Calpha|
+atom of each residue and is then simply the square root of the
+variance of the fluctuation around the average position:
+
+.. math::
+
+   \rho^{\mathrm{RMSF}}_i = \sqrt{\left\langle 
+        \left(\mathbf{r}_i - \langle \mathbf{r}_i \rangle \right)^2 
+        \right\rangle}
+
+Use the :file:`CA.ndx` file from the :ref:`RMSD` calculation with
+`g_rmsf`_::
+
+  mkdir analysis/RMSF && cd analysis/RMSF
+  printf "Calpha\n" | g_rmsf -s ../../MD/md.tpr -f ../../MD/md.xtc -n ../RMSD/CA.ndx -o rmsf.xvg -fit
+
+A plot of :math:`\rho^{\mathrm{RMSF}}_{i}` versus residue number *i*
+shows the regions of high flexibility as peaks in the plot. Note that
+a 100-ps simulation might be too short to obtain a meaningful RMSF
+profile. 
+
+.. figure:: /figures/rmsf_ca.*
+   :scale: 80%
+   :alt: Per-residue RMSF
+   
+   Root mean square fluctuation (RMSF) of the |Calpha| atoms of AdK.
+
+
+.. import matplotlib.pyplot as plt
+.. import numpy
+.. resid,rmsf = numpy.loadtxt("rmsf.xvg", unpack=True)
+.. fig = plt.figure(figsize=(5,2.5))
+.. ax = fig.add_subplot(111)
+.. fig.subplots_adjust(bottom=0.2)
+.. ax.set_xlabel("residue number")
+.. ax.set_ylabel(r"C$_\alpha$ RMSF (nm)")
+.. ax.fill_between(resid, rmsf, color="red", linestyle="-", alpha=0.1)
+.. ax.plot(resid, rmsf, color="red", linestyle="-")
+.. ax.set_xlim(resid.min(), resid.max())
+.. fig.savefig("rmsf_ca.png", dpi=300)
+.. fig.savefig("rmsf_ca.svg")
+.. fig.savefig("rmsf_ca.pdf")
+
+
+
+.. rubric:: Comparison with crystallographic B-factors
+
+You can compare the RMSF to the isotropic atomic crystallographic
+B-factors, which are related by [Willis1975]_
+
+.. math::
+
+   B_{i} = \frac{8\pi^2}{3} (\rho^{\mathrm{RMSF}}_{i})^2
+
+(In this case you would want to calculate the RMSF for all heavy
+(i.e. non-hydrogen) atoms. You don't need to build and use a separate
+index file file: simply choose the default group "Protein-H" ("protein
+without hydrogens")).
+
+.. Note:: Gromacs RMSF are in units of nm and B-factors are
+          typically measured in Å\ :sup:`2`.
+
+It is straightforward to write Python code that calculates the
+B-factor from the RMSF in :file:`rmsf.xvg` and it is also easy to
+extract the B-factor ("temperatureFactor") from columns 61-66 in the
+`ATOM record of a PDB file`_.
+
+
+
+Distances
+~~~~~~~~~
+
+Distances can be a very useful observable to track conformational
+changes. They can often be directly related to real experimental
+observables such as NOEs from NMR experiments or distances from
+cross-linking or FRET experiments.
+
+Here we calculate a simple distance between two |Calpha| atoms as an
+approximation to the distance between two chromophores attached to the
+correspoding residues isoleucine 52 (*I52*) and lysine 145 (*K145*) used
+in a FRET experiment [Henzler-Wildman2007]_.
+
+First we need to create an index file containing the two groups::
+
+ mkdir -p analysis/dist/I52_K145 && cd analysis/dist/I52_K145
+ make_ndx -f ../../../MD/md.tpr -o I52_K145.ndx
+
+Use interactive commands like the following [#ndx_selections]_::
+
+ keep 0
+ del 0
+ r 52 & a CA
+ name 0 I52
+ r 145 & a CA
+ name 1 K145
+ q
+
+to generate the index file :file:`I52_K145.ndx`.
+ 
+The run `g_dist`_ and compute the distance between the two atoms::
+
+  printf "I52\nK145\n" | g_dist -s ../../../MD/md.tpr -f ../../../MD/md.xtc -n I52_K145.ndx -o dist.xvg
+
+The :file:`dist.xvg` file contains the distance in nm for each time
+step in ps.
+
+.. figure:: /figures/d_I52_K145_ca.*
+   :scale: 80%
+   :alt: Timeseries of the distance between |Calpha| atoms of I52 and K145.
+   
+   Timeseries of the distance between the |Calpha| atoms of I52 (NMP
+   domain) and K145 (LID domain).
+
+.. ::
+..  import matplotlib.pyplot as plt
+..  import numpy
+..  t,d,x,y,z = numpy.loadtxt("dist.xvg", unpack=True)
+..  fig = plt.figure(figsize=(5,2.5)) 
+..  ax = fig.add_subplot(111)
+..  fig.subplots_adjust(bottom=0.2)
+..  ax.set_xlabel("time $t$ (ps)")
+..  ax.set_ylabel(r"C$_\alpha$ distance (nm)")
+..  ax.fill_between(t, d, color="orange", linestyle="-", alpha=0.1) 
+..  ax.plot(t, d, color="orange", linestyle="-", label="I52-K145")
+..  ax.legend(loc="best") 
+..  fig.savefig("d_I52_K145_ca.png", dpi=300)
+..  fig.savefig("d_I52_K145_ca.svg")
+..  fig.savefig("d_I52_K145_ca.pdf")
+
+
+(You can also use the centered and fitted trajectory
+:file:`md_fit.xtc` as an input instead of :file:`md.xtc` to make sure
+that the distance calculation does not contain any jumps due to
+periodic boundary effects, or use `g_mindist`_.)
+
+.. SeeAlso:: [Beckstein2009]_ for a discussion of FRET distances in AdK.
+
+
+
+Radius of gyration
+~~~~~~~~~~~~~~~~~~
+
+The radius of gyration measures the compactness of a protein
+structure.
+
+.. math::
+
+   R_\mathrm{gyr}^2 = \frac{1}{M}\sum_{i=1}^{N} m_i(\mathbf{r}_i - \mathbf{R})^2
+
+where :math:`M = \sum_{i=1}^{N} m_i` is the total mass and
+:math:`\mathbf{R} = N^{-1}\sum_{i=1}^{N} \mathbf{r}_i` is the center of
+mass of the protein consisting of :math:`N` atoms.
+
+The Gromacs tool `g_gyrate`_ can be used to compute it.
+
+.. figure:: /figures/rgyr.*
+   :scale: 80%
+   :alt: Timeseries of the radius of gyration.
+   
+   Timeseries of the radius of gyration computed for the whole
+   protein.
+
+
+.. ::
+..   echo Protein | g_gyrate -s ../../MD/md.tpr -f ../../MD/md.xtc -o gyrate.xvg -xvg none
+
+.. ::
+..   import matplotlib.pyplot as plt
+..   import numpy
+..   t,data,x,y,z = numpy.loadtxt("gyrate.xvg", unpack=True)
+..   fig = plt.figure(figsize=(5,2.5))
+..   ax = fig.add_subplot(111)
+..   fig.subplots_adjust(bottom=0.2)
+..   ax.set_xlabel("time $t$ (ps)")
+..   ax.set_ylabel(r"protein $R_\mathrm{gyr}$ (nm)")
+..   ax.fill_between(t,data, color="magenta", linestyle="-", alpha=0.1)
+..   ax.plot(t,data, color="magenta", linestyle="-")
+..   fig.savefig("rgyr.png", dpi=300)
+..   fig.savefig("rgyr.svg")
+..   fig.savefig("rgyr.pdf")
+
+
+
+Secondary structure
+~~~~~~~~~~~~~~~~~~~
+
+.. rubric:: Installation of DSSP
+
+In order to use the Gromacs `do_dssp`_ command you need to install an
+additional program, the :program:`dsspcmbi` executable that performs
+the DSSP_ algorithm [Kabsch1983]_:
+
+- put the provided :file:`bin/MacOSX/dsspcmbi` Mac OS X executable into your
+  :file:`~/opt/bin` directory on your workstation::
+
+     cp bin/MacOSX/dsspcmbi ~/opt/bin
+
+  (If you are using your own Linux machine you can try using the
+  :file:`bin/Linux/dsspcmbi` or you will need to download the DSSP_
+  source code ("DSSPold") yourself and compile it.)
+
+- set the environment variable :envvar:`DSSP` in your
+  :file:`~/opt/bin/GMXRC.bash` Gromacs startup file to tell the
+  Gromacs tool :program:`do_dssp` where to find :program:`dsspcmbi`::
+
+     export DSSP=$HOME/opt/bin/dsspcmbi
+
+  (You may also set :envvar:`DSSP` it in your :file:`~/.profile` bash
+  startup file.)
+
+You only have to install :program:`dsspcmbi` once.
+
+
+.. rubric:: :program:`do_dssp` analysis
+
+Install DSSP_ as described above. Look at the options of `do_dssp`_.
+
+
+
+.. _`AdKTutorial.tar.bz2`:
+    http://becksteinlab.physics.asu.edu/pages/courses/2013/SimBioNano/13/AdKTutorial.tar.bz2
+.. _4AKE: http://www.rcsb.org/pdb/explore.do?structureId=4ake
+.. _pdb2gmx: http://manual.gromacs.org/current/online/pdb2gmx.html
+.. _editconf: http://manual.gromacs.org/current/online/editconf.html
+.. _genbox: http://manual.gromacs.org/current/online/genbox.html
+.. _genion: http://manual.gromacs.org/current/online/genion.html
+.. _trjconv: http://manual.gromacs.org/current/online/trjconv.html
+.. _trjcat: http://manual.gromacs.org/current/online/trjcat.html
+.. _eneconv: http://manual.gromacs.org/current/online/eneconv.html
+.. _grompp: http://manual.gromacs.org/current/online/grompp.html
+.. _mdrun: http://manual.gromacs.org/current/online/mdrun.html
+.. _`mdp options`: http://manual.gromacs.org/current/online/mdp_opt.html
+.. _`Run control options in the MDP file`: http://manual.gromacs.org/current/online/mdp_opt.html#run
+.. _`make_ndx`: http://manual.gromacs.org/current/online/make_ndx.html
+.. _`g_tune_pme`: http://manual.gromacs.org/current/online/g_tune_pme.html
+.. _gmxcheck: http://manual.gromacs.org/current/online/gmxcheck.html
+
+.. _Gromacs manual: http://manual.gromacs.org/
+.. _Gromacs documentation: http://www.gromacs.org/Documentation
+.. _`Gromacs 4.5.6 PDF`: http://www.gromacs.org/@api/deki/files/190/=manual-4.5.6.pdf
+.. _manual section: http://www.gromacs.org/Documentation/Manual
+
+.. _`g_energy`: http://manual.gromacs.org/current/online/g_energy.html
+.. _`g_rms`: http://manual.gromacs.org/current/online/g_rms.html
+.. _`g_rmsf`: http://manual.gromacs.org/current/online/g_rmsf.html
+.. _`g_gyrate`: http://manual.gromacs.org/current/online/g_gyrate.html
+.. _`g_dist`: http://manual.gromacs.org/current/online/g_dist.html
+.. _`g_mindist`: http://manual.gromacs.org/current/online/g_mindist.html
+.. _`do_dssp`: http://manual.gromacs.org/current/online/do_dssp.html
+
+.. _DSSP: http://swift.cmbi.ru.nl/gv/dssp/
+.. _`ATOM record of a PDB file`: http://www.wwpdb.org/documentation/format33/sect9.html#ATOM
+
+.. _saguaro: http://a2c2.asu.edu/resources/saguaro/
+.. _Gromacs: http://www.gromacs.org
+.. _VMD: http://www.ks.uiuc.edu/Research/vmd/
+
+.. rubric:: Footnotes
+
+.. [#observable] "Observable" is used in the widest sense in that we
+   know an estimator function of all or a subset of the system's phase
+   space coordinates that is averaged to provide a quantity of
+   interest. In many cases it requires considerable more work to
+   connect such an "observable" to a true experimental observable that
+   is measured in an experiment.
+
+.. [#default_ndx_groups] Actually, we don't need to create the index
+   group for the |Calpha| atoms ourselves because Gromacs
+   automatically creates the group "C-alpha" as one of many default
+   groups (other are "Protein", "Protein-H" (only protein heavy
+   atoms), "Backbone" (N CA C), "Water", "non-Protein" (i.e. water and
+   ions in our case but could also contain other groups such as drug
+   molecule or a lipid membrane in more complicated simulations),
+   "Water_and_ions". You can see these index groups if you just run
+   :program:`make_ndx` on an input structure or if you interactively
+   select groups in :program:`trjconv`, :program:`g_rms`, ...
+
+   However, making the "Calpha" group yourself is a good exercise
+   because in many cases there are no default index groups for the
+   analysis you might want to do.
+
+.. [#scripted_make_ndx] In scripts you can pipe all the interactive
+   commands to `make_ndx`_ by using the :code:`printf ... | make_ndx`
+   trick::
+     
+     printf "keep 0\ndel 0\na CA\nname 0 Calpha\nq\n" | make_ndx -f ../../MD/md.tpr -o CA.ndx
+
+   This will accomplish the same thing as the interactive use
+   described above.
+
+.. [#ndx_selections] Note that one has to be careful when selecting
+   residue ids in :program:`make_ndx`. It is often the case that a PDB
+   file does not contain all residues, e.g. residues 1--8 might be
+   unresolved in the experiment and thus are missing from the PDB
+   file. The file then simply starts with residue number 9. Gromacs,
+   however, typically *renumbers residues so that they start at
+   1*. Thus, in this hypothetical case, a residue that might be
+   referred to in the literature as "residue 100" might actually be
+   residue 92 in the simulation (:math:`N^\mathrm{sim}_\mathrm{res} =
+   N^\mathrm{PDB}_\mathrm{res} - (\mathrm{min}
+   N^\mathrm{PDB}_\mathrm{res} - 1)`). Thus, if you wanted to select
+   the |Calpha| atom of residue 100 you would need to select :kbd:`r
+   92 & a CA` in :program:`make_ndx`.
+

@@ -1,0 +1,147 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>3. Energy minimization &mdash; Practical 13: AdK Tutorial 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="Practical 13: AdK Tutorial 1.0 documentation" href="index.html" />
+    <link rel="next" title="4. Position restraints MD" href="position_restraints_MD.html" />
+    <link rel="prev" title="2. Setup of the solvated protein system" href="system_setup.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="position_restraints_MD.html" title="4. Position restraints MD"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="system_setup.html" title="2. Setup of the solvated protein system"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="energy-minimization">
+<span id="id1"></span><h1>3. Energy minimization<a class="headerlink" href="#energy-minimization" title="Permalink to this headline">¶</a></h1>
+<p>In order to remove &#8220;clashes&#8221; (i.e. close overlaps of the LJ cores) we
+perform an <em>energy minization</em>: Instead of a MD simulation we use an
+algorithm to change the coordinates in such a way as to reduce the
+total potential energy.</p>
+<p>We use the simple <em>steepest descent</em> minimizer (<tt class="docutils literal"><span class="pre">integrator</span> <span class="pre">=</span> <span class="pre">steep</span></tt>
+in <tt class="docutils literal"><span class="pre">em.mdp</span></tt>, which runs in parallel). Use <a class="reference external" href="http://manual.gromacs.org/current/online/grompp.html">grompp</a> (the GROMacs
+PreProcessor) to generate the run input file
+(TPR) from the run parameter file (MDP), coordinate file (the solvated
+system with ions; PDB), and the topology (TOP):</p>
+<div class="highlight-python"><pre>grompp -f em.mdp -c ../solvation/ionized.pdb -p ../top/4ake.top -o em.tpr</pre>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The MDP file <tt class="file docutils literal"><span class="pre">em.mdp</span></tt> is provided in
+<tt class="file docutils literal"><span class="pre">templates/em.mdp</span></tt>: copy it to the <tt class="file docutils literal"><span class="pre">emin/</span></tt>
+directory. You should have a look at it and modify it according to
+your needs. The individual parameters are explained under <a class="reference external" href="http://manual.gromacs.org/current/online/mdp_opt.html">mdp
+options</a>.</p>
+</div>
+<p>The energy minimization is performed with <strong class="program">mdrun</strong> but by
+using the appropriate <tt class="docutils literal"><span class="pre">integrator</span></tt> option in the <a class="reference external" href="http://manual.gromacs.org/current/online/mdp_opt.html#run">Run control
+options in the MDP file</a> it has been instructed to do a energy
+minimization:</p>
+<div class="highlight-python"><pre>mdrun -v -s em.tpr -deffnm em -c em.pdb</pre>
+</div>
+<p>Ideally, the maximum force <em>Fmax</em> (gradient of the potential) should
+be &lt; 1e+03 kJ mol<sup>-1</sup> nm<sup>-2</sup> (but typically anything below 1e+05
+kJ mol<sup>-1</sup> nm<sup>-2</sup> works). See the screen output or the <tt class="file docutils literal"><span class="pre">em.log</span></tt> file for
+this information.</p>
+<p>If you want to minimize further, you can use the :file&#8221;<cite>em.pdb</cite>
+structure as an input for a second run with either the <em>conjugate
+gradients</em> (<tt class="docutils literal"><span class="pre">integrator</span> <span class="pre">=</span> <span class="pre">cg</span></tt>) or the Newton-like
+<em>Broyden-Fletcher-Goldfarb-Shanno</em> (<tt class="docutils literal"><span class="pre">integrator</span> <span class="pre">=</span> <span class="pre">l-bfgs</span></tt>)
+minimizer. For details see <a class="reference external" href="http://manual.gromacs.org/current/online/mdp_opt.html#run">Run control options in the MDP file</a>.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="system_setup.html"
+                        title="previous chapter">2. Setup of the solvated protein system</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="position_restraints_MD.html"
+                        title="next chapter">4. Position restraints MD</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/energy_minimization.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="position_restraints_MD.html" title="4. Position restraints MD"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="system_setup.html" title="2. Setup of the solvated protein system"
+             >previous</a> |</li>
+        <li><a href="index.html">Practical 13: AdK Tutorial 1.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Oliver Beckstein.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
